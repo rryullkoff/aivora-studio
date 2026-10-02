@@ -1,0 +1,4 @@
+tkinterdnd2
+Pillow
+mutagen
+imageio-ffmpeg
