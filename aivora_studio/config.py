@@ -9,7 +9,7 @@ import tempfile
 
 APP_NAME = "Aivora Studio"
 
-VERSION = "1.0.001"
+VERSION = "1.0.002"
 
 BG = "#101218"
 

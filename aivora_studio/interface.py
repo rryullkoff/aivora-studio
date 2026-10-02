@@ -29,7 +29,7 @@ from .helpers import (
 
 class InterfaceMixin:
 
-    FIRST_UPDATE_AT = datetime(2026, 10, 9)
+    FIRST_UPDATE_AT = datetime(2026, 10, 9, 18)
     UPDATE_INTERVAL = timedelta(days=7)
     FRENCH_MONTHS = (
         "janvier",
@@ -44,6 +44,15 @@ class InterfaceMixin:
         "octobre",
         "novembre",
         "décembre",
+    )
+    FRENCH_DAYS = (
+        "lundi",
+        "mardi",
+        "mercredi",
+        "jeudi",
+        "vendredi",
+        "samedi",
+        "dimanche",
     )
 
     def setup_styles(self):
@@ -164,15 +173,6 @@ class InterfaceMixin:
             font=("Segoe UI", 9, "bold"),
         ).pack(anchor="w", pady=(2, 0))
 
-        self.update_countdown_label = tk.Label(
-            brand_text,
-            text="Prochaine mise à jour · calcul…",
-            bg=BG,
-            fg=ACCENT_HOVER,
-            font=("Segoe UI", 8, "bold"),
-        )
-        self.update_countdown_label.pack(anchor="w", pady=(5, 0))
-
         header_actions = tk.Frame(header, bg=BG)
         header_actions.pack(side="right")
 
@@ -207,6 +207,46 @@ class InterfaceMixin:
             padx=14,
             pady=8,
         ).pack(side="right")
+
+        self.update_countdown_card = tk.Frame(
+            self,
+            bg=CARD,
+            highlightbackground=BORDER,
+            highlightthickness=1,
+        )
+        self.update_countdown_card.pack(
+            fill="x",
+            padx=30,
+            pady=(0, 15),
+        )
+        countdown_content = tk.Frame(
+            self.update_countdown_card,
+            bg=CARD,
+        )
+        countdown_content.pack(fill="x", padx=16, pady=11)
+        tk.Label(
+            countdown_content,
+            text="PROCHAINE MISE À JOUR",
+            bg=CARD,
+            fg=MUTED,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(side="left")
+        self.update_countdown_label = tk.Label(
+            countdown_content,
+            text="Calcul…",
+            bg=CARD,
+            fg=ACCENT_HOVER,
+            font=("Segoe UI", 11, "bold"),
+        )
+        self.update_countdown_label.pack(side="right")
+        self.update_countdown_date_label = tk.Label(
+            countdown_content,
+            text="Chaque vendredi à 18 h",
+            bg=CARD,
+            fg=MUTED,
+            font=("Segoe UI", 8),
+        )
+        self.update_countdown_date_label.pack(side="right", padx=(0, 14))
 
         # Zone de dépôt
         self.drop_zone = tk.Frame(
@@ -380,13 +420,17 @@ class InterfaceMixin:
         now = datetime.now()
         target = self.get_next_update_at(now)
         remaining = self.format_update_countdown(now, target)
+        day = self.FRENCH_DAYS[target.weekday()]
         month = self.FRENCH_MONTHS[target.month - 1]
-        text = (
-            f"Prochaine mise à jour · dans {remaining} "
-            f"({target.day} {month} {target.year})"
+        date_text = (
+            f"{day} {target.day} {month} {target.year} à "
+            f"{target.hour:02} h"
         )
 
-        self.update_countdown_label.config(text=text)
+        self.update_countdown_label.config(text=remaining)
+        self.update_countdown_date_label.config(
+            text=f"{date_text} · chaque vendredi à 18 h"
+        )
         self.after(1000, self.update_release_countdown)
 
     def update_content_scroll_region(self, event=None):
@@ -542,8 +586,8 @@ class InterfaceMixin:
                 VERSION,
                 "Compteur avant la prochaine mise à jour",
                 (
-                    "Ajout du compte à rebours jusqu’au 9 octobre 2026 et "
-                    "démarrage de la numérotation des correctifs en 1.0.001."
+                    "Le compteur est présenté dans une carte et annonce la "
+                    "prochaine échéance chaque vendredi à 18 h."
                 ),
             ),
         ]

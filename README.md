@@ -53,9 +53,9 @@ disponible comme ancien point de lancement.
 - Guide des versions : grandes mises à jour environ chaque semaine (1.0, 1.1,
   1.2…) et petits correctifs environ chaque jour (1.0.001, 1.0.002…). Chaque
   petit correctif est livré dans un commit séparé ; les nouvelles fonctionnalités
-  sont regroupées dans une livraison hebdomadaire (1.1.000, 1.2.000…). Un
-  compte à rebours dans l’interface indique la prochaine date hebdomadaire,
-  à partir du 9 octobre 2026.
+  sont regroupées dans une livraison hebdomadaire (1.1.000, 1.2.000…). Une
+  carte dans l’interface compte le temps restant jusqu’à chaque vendredi
+  à 18 h, à partir du 9 octobre 2026.
 - Forme d'onde audio lissée, redessinée en haute résolution avec un dégradé
   doux.
 - Fenêtre Paramètres pour personnaliser la palette, les dossiers surveillés
@@ -74,4 +74,4 @@ disponible comme ancien point de lancement.
 
 Les paramètres locaux sont enregistrés dans `%APPDATA%\Aivora Studio\settings.json`.
 
-Version actuelle : **1.0**.
+Version actuelle : **1.0.002**.
