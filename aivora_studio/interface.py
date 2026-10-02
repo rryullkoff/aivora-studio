@@ -1,5 +1,7 @@
 """Interface behaviors for Aivora Studio."""
 
+from datetime import datetime, timedelta
+
 from .dependencies import (
     tk,
     tkfont,
@@ -26,6 +28,23 @@ from .helpers import (
 
 
 class InterfaceMixin:
+
+    FIRST_UPDATE_AT = datetime(2026, 10, 9)
+    UPDATE_INTERVAL = timedelta(days=7)
+    FRENCH_MONTHS = (
+        "janvier",
+        "février",
+        "mars",
+        "avril",
+        "mai",
+        "juin",
+        "juillet",
+        "août",
+        "septembre",
+        "octobre",
+        "novembre",
+        "décembre",
+    )
 
     def setup_styles(self):
 
@@ -144,6 +163,15 @@ class InterfaceMixin:
             fg=MUTED,
             font=("Segoe UI", 9, "bold"),
         ).pack(anchor="w", pady=(2, 0))
+
+        self.update_countdown_label = tk.Label(
+            brand_text,
+            text="Prochaine mise à jour · calcul…",
+            bg=BG,
+            fg=ACCENT_HOVER,
+            font=("Segoe UI", 8, "bold"),
+        )
+        self.update_countdown_label.pack(anchor="w", pady=(5, 0))
 
         header_actions = tk.Frame(header, bg=BG)
         header_actions.pack(side="right")
@@ -320,6 +348,46 @@ class InterfaceMixin:
         self.create_metadata_panel(content)
         self.create_cover_panel(content)
         self.polish_widget_tree(self)
+        self.update_release_countdown()
+
+    @staticmethod
+    def format_update_countdown(now, target):
+
+        remaining_seconds = max(0, int((target - now).total_seconds()))
+        days, remaining_seconds = divmod(remaining_seconds, 24 * 60 * 60)
+        hours, remaining_seconds = divmod(remaining_seconds, 60 * 60)
+        minutes, seconds = divmod(remaining_seconds, 60)
+
+        if days:
+            remaining = f"{days} j {hours:02} h {minutes:02} min {seconds:02} s"
+        else:
+            remaining = f"{hours:02} h {minutes:02} min {seconds:02} s"
+
+        return remaining
+
+    @classmethod
+    def get_next_update_at(cls, now):
+
+        if now < cls.FIRST_UPDATE_AT:
+            return cls.FIRST_UPDATE_AT
+
+        elapsed = now - cls.FIRST_UPDATE_AT
+        elapsed_weeks = elapsed // cls.UPDATE_INTERVAL
+        return cls.FIRST_UPDATE_AT + cls.UPDATE_INTERVAL * (elapsed_weeks + 1)
+
+    def update_release_countdown(self):
+
+        now = datetime.now()
+        target = self.get_next_update_at(now)
+        remaining = self.format_update_countdown(now, target)
+        month = self.FRENCH_MONTHS[target.month - 1]
+        text = (
+            f"Prochaine mise à jour · dans {remaining} "
+            f"({target.day} {month} {target.year})"
+        )
+
+        self.update_countdown_label.config(text=text)
+        self.after(1000, self.update_release_countdown)
 
     def update_content_scroll_region(self, event=None):
 
@@ -456,9 +524,10 @@ class InterfaceMixin:
         tk.Label(
             guide,
             text=(
-                "Ils augmentent le numéro de correctif sur trois chiffres : "
-                "1.0.001 → 1.0.002. Une nouvelle grande version repart à "
-                "1.1.000."
+                "Chaque correctif est un commit isolé et augmente le numéro "
+                "sur trois chiffres : 1.0.001 → 1.0.002. Les nouvelles "
+                "fonctionnalités sont regroupées dans une livraison "
+                "hebdomadaire, qui augmente le deuxième chiffre : 1.1.000."
             ),
             bg=CARD,
             fg=MUTED,
@@ -471,8 +540,11 @@ class InterfaceMixin:
         entries = [
             (
                 VERSION,
-                "Nouveau départ",
-                ("Base de versionnement 1.0 d’Aivora Studio.",),
+                "Compteur avant la prochaine mise à jour",
+                (
+                    "Ajout du compte à rebours jusqu’au 9 octobre 2026 et "
+                    "démarrage de la numérotation des correctifs en 1.0.001."
+                ),
             ),
         ]
 
