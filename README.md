@@ -20,6 +20,28 @@ Pour lancer l'application manuellement après l'installation :
 .\.venv\Scripts\python.exe -m aivora_studio
 ```
 
+## Aperçu de la refonte 1.1
+
+La refonte visuelle explore PySide6 et des styles QSS centralisés dans
+[`aivora_studio/qt_theme.py`](./aivora_studio/qt_theme.py), sur le principe
+d'une feuille de style web. Pour lancer l'aperçu sans remplacer l'application
+actuelle :
+
+```powershell
+.\.venv\Scripts\python.exe -m aivora_studio --qt-preview
+```
+
+Cet aperçu présente les champs de métadonnées, une forme d'onde illustrative,
+ainsi que des fenêtres de versions, d'anomalies fictives et de paramètres
+maquettés. Un bouton d'enregistrement est présent dans la barre inférieure,
+mais signale clairement que l'écriture des tags n'est pas encore reliée. Le
+thème sombre en cartes, champs arrondis et contrôles personnalisés est partagé
+par la fenêtre et ses modales. L'aperçu valide la direction visuelle et le
+glisser-déposer, mais ne remplace pas encore l'éditeur complet ; l'application
+Tkinter reste le lancement par défaut pendant la migration des fonctionnalités.
+La feuille de route des correctifs et de la livraison 1.1 est dans
+[`UPDATE.md`](./UPDATE.md).
+
 ## Organisation du code
 
 - [`aivora_studio/app.py`](./aivora_studio/app.py) assemble la fenêtre principale.
@@ -34,6 +56,8 @@ Pour lancer l'application manuellement après l'installation :
   conversion, la réparation et la surveillance du dossier audio.
 - [`aivora_studio/config.py`](./aivora_studio/config.py) contient la version,
   les couleurs et les paramètres.
+- [`aivora_studio/qt_theme.py`](./aivora_studio/qt_theme.py) centralise les
+  jetons visuels et la feuille de style du prototype PySide6.
 
 Le fichier [`audio_metadata_editor.py`](./audio_metadata_editor.py) reste
 disponible comme ancien point de lancement.

@@ -1,9 +1,18 @@
 """Desktop application entry point."""
 
-from .app import AivoraStudio
+import sys
 
 
 def main():
+
+    if "--qt-preview" in sys.argv[1:]:
+        from .qt_preview import main as run_preview
+
+        run_preview()
+        return
+
+    from .app import AivoraStudio
+
     app = AivoraStudio()
     app.mainloop()
 

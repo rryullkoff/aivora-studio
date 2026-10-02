@@ -41,7 +41,7 @@ echo Creating the Aivora Studio Python environment...
 if errorlevel 1 goto setup_failed
 
 :dependencies
-".venv\Scripts\python.exe" -c "import tkinterdnd2, PIL, mutagen, imageio_ffmpeg" >nul 2>nul
+".venv\Scripts\python.exe" -c "import tkinterdnd2, PIL, mutagen, imageio_ffmpeg, PySide6" >nul 2>nul
 if errorlevel 1 (
     echo Installing Aivora Studio dependencies...
     ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -r requirements.txt
