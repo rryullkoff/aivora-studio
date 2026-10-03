@@ -25,6 +25,7 @@ from .config import (
 from .helpers import (
     uppercase_text,
 )
+from .version_history import VERSION_HISTORY
 
 
 class InterfaceMixin:
@@ -489,7 +490,7 @@ class InterfaceMixin:
 
         tk.Label(
             header,
-            text="Aivora Studio repart sur une nouvelle base : la version 1.0.",
+            text="Demandes et changements consignés avant et depuis la version 1.0.",
             bg=BG,
             fg=MUTED,
             font=("Segoe UI", 10),
@@ -581,18 +582,7 @@ class InterfaceMixin:
             wraplength=490,
         ).pack(anchor="w", padx=16, pady=(0, 14))
 
-        entries = [
-            (
-                VERSION,
-                "Compteur avant la prochaine mise à jour",
-                (
-                    "Le compteur est présenté dans une carte et annonce la "
-                    "prochaine échéance chaque vendredi à 18 h."
-                ),
-            ),
-        ]
-
-        for version, title, *changes in entries:
+        for version, title, changes in VERSION_HISTORY:
             card = tk.Frame(
                 history,
                 bg=CARD,

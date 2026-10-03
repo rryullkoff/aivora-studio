@@ -31,14 +31,23 @@ actuelle :
 .\.venv\Scripts\python.exe -m aivora_studio --qt-preview
 ```
 
-Cet aperçu présente les champs de métadonnées, une forme d'onde illustrative,
-ainsi que des fenêtres de versions, d'anomalies fictives et de paramètres
-maquettés. Un bouton d'enregistrement est présent dans la barre inférieure,
-mais signale clairement que l'écriture des tags n'est pas encore reliée. Le
-thème sombre en cartes, champs arrondis et contrôles personnalisés est partagé
-par la fenêtre et ses modales. L'aperçu valide la direction visuelle et le
-glisser-déposer, mais ne remplace pas encore l'éditeur complet ; l'application
-Tkinter reste le lancement par défaut pendant la migration des fonctionnalités.
+Cet aperçu présente les champs de métadonnées et les types combinables, avec
+thèmes (quatre palettes) et densité (confortable/compacte) réglables à chaud.
+Les modifications de tags sont enregistrées dans les formats audio pris en
+charge via une copie temporaire remplacée atomiquement ; aucun changement
+n'est fait avant Enregistrer. Les tags et pochettes sont pris en charge pour
+MP3, WAV, FLAC, M4A, MP4, OGG et OPUS. L'aperçu lit, prévisualise, ajoute,
+remplace et supprime les pochettes. Il comprend aussi une forme d'onde réelle
+calculée par FFmpeg, la lecture et le déplacement dans le morceau avec Qt
+Multimedia, ainsi qu'une estimation du BPM.
+
+Le rail PySide6 se remplit de manière asynchrone depuis le dossier exclu.
+Après enregistrement d'un fichier ouvert depuis ce rail, le déplacement vers
+un dossier choisi est activé par défaut et peut être désactivé dans les
+paramètres. Le dossier surveillé configuré est proposé par défaut
+(`C:\Users\basti\Desktop\iCloudDrive\LEAK.BM31K`). Une destination existante
+demande confirmation et la source n'est supprimée qu'après copie réussie.
+L'application Tkinter reste le lancement par défaut pendant la migration.
 La feuille de route des correctifs et de la livraison 1.1 est dans
 [`UPDATE.md`](./UPDATE.md).
 
@@ -80,6 +89,11 @@ disponible comme ancien point de lancement.
   sont regroupées dans une livraison hebdomadaire (1.1.000, 1.2.000…). Une
   carte dans l’interface compte le temps restant jusqu’à chaque vendredi
   à 18 h, à partir du 9 octobre 2026.
+- Fenêtre Versions : historique des demandes et changements par version,
+  incluant les demandes fonctionnelles initiales avant la remise à zéro en 1.0 ;
+  le même historique est utilisé dans l’application Python et l’aperçu PySide6.
+- Le déplacement après édition des fichiers ouverts depuis le rail peut être
+  activé ou désactivé dans les paramètres de l'aperçu.
 - Forme d'onde audio lissée, redessinée en haute résolution avec un dégradé
   doux.
 - Fenêtre Paramètres pour personnaliser la palette, les dossiers surveillés
@@ -96,6 +110,9 @@ disponible comme ancien point de lancement.
 - Rail « Sélection rapide » pour ouvrir les fichiers audio du dossier exclu,
   avec pagination et indication du fichier chargé.
 
-Les paramètres locaux sont enregistrés dans `%APPDATA%\Aivora Studio\settings.json`.
+Les paramètres de l'application actuelle sont enregistrés dans
+`%APPDATA%\Aivora Studio\settings.json`. Les préférences indépendantes de
+l'aperçu Qt (thème, densité et fonctions activées) sont conservées par
+QSettings.
 
-Version actuelle : **1.0.002**.
+Version actuelle : **1.0.007**.
