@@ -4,6 +4,8 @@ import os
 import shutil
 import tempfile
 
+from mutagen import File
+
 
 def move_file_to_folder(source, destination_folder):
     source = os.path.abspath(source)
@@ -44,6 +46,33 @@ def move_file_to_folder(source, destination_folder):
 
         os.remove(source)
         return destination
+    finally:
+        if temporary_path and os.path.exists(temporary_path):
+            os.remove(temporary_path)
+
+
+def remove_audio_metadata_atomically(path):
+    path = os.path.abspath(path)
+    folder = os.path.dirname(path)
+    extension = os.path.splitext(path)[1]
+    temporary_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix=".aivora-metadata-",
+            suffix=extension,
+            dir=folder,
+            delete=False,
+        ) as temporary_file:
+            temporary_path = temporary_file.name
+
+        shutil.copy2(path, temporary_path)
+        audio = File(temporary_path, easy=False)
+        if audio is None:
+            raise ValueError("Format audio non reconnu par Mutagen.")
+        audio.delete()
+        os.replace(temporary_path, path)
+        temporary_path = None
     finally:
         if temporary_path and os.path.exists(temporary_path):
             os.remove(temporary_path)

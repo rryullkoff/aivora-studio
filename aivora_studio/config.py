@@ -9,7 +9,7 @@ import tempfile
 
 APP_NAME = "Aivora Studio"
 
-VERSION = "1.0.011 BETA"
+VERSION = "1.0.013"
 
 BG = "#101218"
 
@@ -64,6 +64,7 @@ FEATURE_SETTING_NAMES = (
     "ENABLE_ARTIST_FOLDER_CHECK",
     "ENABLE_TRACK_TYPE",
     "ENABLE_AUTO_UPPERCASE",
+    "ENABLE_METADATA_REMOVAL_ON_IMPORT",
 )
 
 ENABLE_QUICK_SELECTION = True
@@ -76,6 +77,7 @@ ENABLE_FILE_RENAMING = True
 ENABLE_ARTIST_FOLDER_CHECK = True
 ENABLE_TRACK_TYPE = True
 ENABLE_AUTO_UPPERCASE = True
+ENABLE_METADATA_REMOVAL_ON_IMPORT = True
 
 AUDIO_EXTENSIONS = {
     ".mp3", ".wav", ".flac", ".m4a", ".mp4", ".ogg", ".opus",
@@ -188,6 +190,7 @@ def apply_runtime_settings(settings):
     global ENABLE_AUDIO_CONVERSION, ENABLE_AUDIO_REPAIR
     global ENABLE_FILE_RENAMING, ENABLE_ARTIST_FOLDER_CHECK
     global ENABLE_TRACK_TYPE, ENABLE_AUTO_UPPERCASE
+    global ENABLE_METADATA_REMOVAL_ON_IMPORT
 
     values = validate_settings(settings)
     for name in COLOR_SETTING_NAMES:

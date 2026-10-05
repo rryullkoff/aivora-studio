@@ -57,7 +57,10 @@ from mutagen.mp4 import MP4, MP4Cover
 from shiboken6 import delete as delete_qobject
 
 from . import config
-from .file_operations import move_file_to_folder
+from .file_operations import (
+    move_file_to_folder,
+    remove_audio_metadata_atomically,
+)
 from .artist_folders import (
     get_or_create_artist_folder,
     list_artist_folder_names,
@@ -236,6 +239,7 @@ class PreviewWindow(QMainWindow):
         "Sélection rapide",
         "Renommage automatique",
         "Vérification du dossier artiste",
+        "Supprimer les métadonnées à l’importation",
     )
 
     def __init__(self, preferences=None):
@@ -759,6 +763,15 @@ class PreviewWindow(QMainWindow):
             audio = File(path, easy=False)
             if audio is None:
                 raise ValueError("Format audio non reconnu par Mutagen.")
+            if self.feature_toggles[
+                "Supprimer les métadonnées à l’importation"
+            ]:
+                if os.path.normcase(os.path.abspath(path)) == os.path.normcase(
+                    os.path.abspath(self.current_audio_path)
+                ):
+                    self.release_media_player_source()
+                remove_audio_metadata_atomically(path)
+                audio = File(path, easy=False)
 
             metadata = {
                 "artist": self.read_audio_tag(
@@ -1264,7 +1277,7 @@ class PreviewWindow(QMainWindow):
         source_path = self.current_audio_path
         try:
             first_artist = re.split(
-                r"\s*&\s*|\s*;\s*",
+                r"\s*;\s*",
                 values["artist"] or "ARTISTE INCONNU",
                 maxsplit=1,
             )[0]
@@ -1689,7 +1702,7 @@ class PreviewWindow(QMainWindow):
             pass
 
         folder = os.path.basename(os.path.dirname(path)).strip()
-        artist = re.split(r"\s*&\s*|\s*;\s*", values["artist"], maxsplit=1)[0]
+        artist = re.split(r"\s*;\s*", values["artist"], maxsplit=1)[0]
         artist = artist.strip()
         if folder.casefold() == clean_filename(artist).casefold():
             return
@@ -1903,7 +1916,7 @@ class PreviewWindow(QMainWindow):
         next_release.setProperty("card", True)
         next_layout = QVBoxLayout(next_release)
         next_layout.setContentsMargins(14, 12, 14, 12)
-        next_heading = QLabel("1.0.012 · Migration visuelle progressive")
+        next_heading = QLabel("1.0.014 · Migration visuelle progressive")
         next_heading.setProperty("role", "subtitle")
         next_detail = QLabel(
             "Continuer à rapprocher l’interface principale de PySide6 sans "

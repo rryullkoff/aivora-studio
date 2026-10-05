@@ -1,6 +1,6 @@
 ﻿# Feuille de route des versions
 
-La version actuelle est **1.0.011 BETA**. Chaque correctif `1.0.xxx` doit rester
+La version actuelle est **1.0.013**. Chaque correctif `1.0.xxx` doit rester
 petit, testable et faire l'objet de son propre commit. Les nouvelles fonctions
 de la refonte PySide6 sont préparées progressivement ; elles ne remplacent pas
 l'application principale avant que les parcours existants soient vérifiés.
@@ -129,18 +129,32 @@ versions publiées repart de la nouvelle base 1.0.
   conservées.
 - **Livré** : exclure le dossier protégé et réutiliser les empreintes en cache.
 
-### 1.0.011 BETA — Rangement par premier artiste
+### 1.0.011 — Rangement par premier artiste
 
-- **Bêta** : proposer dans les champs Artiste les noms des dossiers trouvés
+- Proposer dans les champs Artiste les noms des dossiers trouvés
   hors dossier exclu, avec création possible d’un nouvel artiste.
-- **Bêta** : créer le dossier du premier artiste à l’enregistrement s’il
+- Créer le dossier du premier artiste à l’enregistrement s’il
   n’existe pas et y ranger le fichier.
-- **Bêta** : ne créer aucun fichier dans le dossier des autres artistes ; leurs
+- Ne créer aucun fichier dans le dossier des autres artistes ; leurs
   noms sont conservés uniquement dans les métadonnées.
+
+### 1.0.012 — Suppression des métadonnées à l’importation
+
+- **Livré** : ajouter un réglage activé par défaut pour supprimer les
+  métadonnées lors de l’importation, sans changer le nom ni le contenu audio.
+- **Livré** : appliquer la suppression de façon atomique dans les interfaces
+  Tkinter et PySide6, et permettre de désactiver l’option dans les paramètres.
+
+### 1.0.013 — Correction des noms d’artiste avec esperluette
+
+- **Livré** : traiter `&` comme une partie du nom d’un artiste unique lors
+  du chargement et de la création/vérification de son dossier.
+- **Livré** : conserver le point-virgule comme séparateur des noms d’artistes
+  existants.
 
 ## Prochains correctifs
 
-### 1.0.012 — Migration visuelle et réglages
+### 1.0.014 — Migration visuelle et réglages
 
 - Continuer à rapprocher l'interface principale des composants et espacements
   visuels de PySide6 tout en gardant les outils Tkinter disponibles.

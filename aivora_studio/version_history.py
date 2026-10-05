@@ -153,7 +153,7 @@ VERSION_HISTORY = (
         ),
     ),
     (
-        "1.0.011 BETA",
+        "1.0.011",
         "Rangement dans le dossier du premier artiste",
         (
             "Proposer les noms des dossiers artiste existants dans les champs "
@@ -164,6 +164,26 @@ VERSION_HISTORY = (
             "du premier artiste ; les autres artistes restent dans les tags.",
             "Conserver le déplacement après sauvegarde en évitant d’écraser "
             "les fichiers existants.",
+        ),
+    ),
+    (
+        "1.0.012",
+        "Suppression des métadonnées à l’importation",
+        (
+            "Ajouter un réglage pour supprimer automatiquement les "
+            "métadonnées lors de l’importation, tout en conservant le nom "
+            "et le contenu audio du fichier.",
+            "Effectuer la suppression de manière atomique et permettre de "
+            "désactiver cette option dans les paramètres.",
+        ),
+    ),
+    (
+        "1.0.013",
+        "Correction des noms d’artiste avec esperluette",
+        (
+            "Traiter « & » comme un caractère du nom d’un artiste unique "
+            "(par exemple « Bello & Dallas ») au chargement et pour le "
+            "choix et la vérification du dossier artiste.",
         ),
     ),
 )

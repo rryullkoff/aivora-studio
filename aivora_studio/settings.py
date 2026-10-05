@@ -298,6 +298,11 @@ class SettingsMixin:
             ("ENABLE_ARTIST_FOLDER_CHECK", "Alerte si le dossier ne correspond pas au premier artiste"),
             ("ENABLE_TRACK_TYPE", "Type du son et suffixe de titre"),
             ("ENABLE_AUTO_UPPERCASE", "Mise en majuscules automatique"),
+            (
+                "ENABLE_METADATA_REMOVAL_ON_IMPORT",
+                "Supprimer automatiquement les métadonnées à l'importation "
+                "(le nom du fichier est conservé)",
+            ),
         )
         for row, (name, label) in enumerate(feature_labels):
             variable = tk.BooleanVar(master=dialog, value=current[name])

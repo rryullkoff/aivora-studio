@@ -33,7 +33,10 @@ from .helpers import (
     get_extension,
     uppercase_text,
 )
-from .file_operations import move_file_to_folder
+from .file_operations import (
+    move_file_to_folder,
+    remove_audio_metadata_atomically,
+)
 from .artist_folders import get_or_create_artist_folder
 
 
@@ -70,7 +73,7 @@ class EditorMixin:
         if os.path.isfile(path):
             self.load_file(path)
 
-    def load_file(self, path):
+    def load_file(self, path, remove_metadata=None):
 
         try:
 
@@ -78,6 +81,12 @@ class EditorMixin:
 
             if audio is None:
                 raise ValueError("FORMAT AUDIO NON RECONNU.")
+
+            if remove_metadata is None:
+                remove_metadata = config.ENABLE_METADATA_REMOVAL_ON_IMPORT
+            if remove_metadata:
+                remove_audio_metadata_atomically(path)
+                audio = File(path, easy=False)
 
             self.current_file = path
             self.audio = audio
@@ -179,7 +188,7 @@ class EditorMixin:
             artists = [
                 x.strip()
                 for x in re.split(
-                    r"\s*&\s*|\s*;\s*",
+                    r"\s*;\s*",
                     artist_value,
                 )
                 if x.strip()
@@ -738,7 +747,7 @@ class EditorMixin:
                     artist_folder,
                 )
             except OSError as error:
-                self.load_file(source_path)
+                self.load_file(source_path, remove_metadata=False)
                 self.status_label.config(
                     text="Enregistré · déplacement impossible",
                     fg=WARNING,
@@ -753,7 +762,7 @@ class EditorMixin:
                 )
                 return
             except ValueError as error:
-                self.load_file(source_path)
+                self.load_file(source_path, remove_metadata=False)
                 self.status_label.config(
                     text="Enregistré · dossier artiste invalide",
                     fg=WARNING,
@@ -773,7 +782,7 @@ class EditorMixin:
                 self.refresh_artist_option_menu(item)
 
             # 4. Recharge le fichier avec ses nouvelles métadonnées
-            self.load_file(self.current_file)
+            self.load_file(self.current_file, remove_metadata=False)
             self.refresh_quick_selection()
             folder_warning = self.get_artist_folder_warning()
 

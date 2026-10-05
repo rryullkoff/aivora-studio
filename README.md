@@ -115,6 +115,8 @@ disponible comme ancien point de lancement.
   l'édition des pochettes, l'analyse BPM/forme d'onde, la surveillance,
   la conversion, la réparation, le renommage, le contrôle du dossier artiste,
   les types de piste et les majuscules automatiques.
+- Option de suppression automatique des métadonnées à l'importation (activée
+  par défaut) ; le nom et le contenu audio du fichier sont conservés.
 - Vérification après enregistrement : le nom du dossier doit correspondre au
   premier artiste. Les fichiers du dossier exclu et de ses sous-dossiers sont
   ignorés ; un emplacement incorrect affiche un avertissement sans bloquer
@@ -128,4 +130,4 @@ Les paramètres de l'application actuelle sont enregistrés dans
 l'aperçu Qt (thème, densité et fonctions activées) sont conservées par
 QSettings.
 
-Version actuelle : **1.0.011 BETA**.
+Version actuelle : **1.0.013**.
