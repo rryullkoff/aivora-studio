@@ -9,7 +9,7 @@ import tempfile
 
 APP_NAME = "Aivora Studio"
 
-VERSION = "1.0.007"
+VERSION = "1.0.011 BETA"
 
 BG = "#101218"
 
@@ -36,6 +36,13 @@ SUCCESS = "#55C98A"
 WARNING = "#E0A84E"
 
 MONITORED_FOLDER = os.path.join(
+    os.path.expanduser("~"),
+    "Desktop",
+    "iCloudDrive",
+    "LEAK.BM31K",
+)
+
+POST_SAVE_FOLDER = os.path.join(
     os.path.expanduser("~"),
     "Desktop",
     "iCloudDrive",

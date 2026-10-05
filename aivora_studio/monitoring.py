@@ -32,6 +32,13 @@ from .config import (
 from .helpers import (
     get_extension,
 )
+from .duplicates import (
+    delete_review_file,
+    duplicate_group_is_current,
+    duplicate_group_key,
+    find_audio_duplicates,
+    format_file_details,
+)
 
 
 class MonitoringMixin:
@@ -274,9 +281,42 @@ class MonitoringMixin:
             "converted": 0,
             "repaired": 0,
             "issues": [],
+            "duplicate_groups": [],
         }
 
         try:
+            duplicate_groups, duplicate_errors = find_audio_duplicates(
+                MONITORED_FOLDER,
+                EXCLUDED_FOLDER,
+                AUDIO_EXTENSIONS,
+                hash_cache=self.duplicate_hash_cache,
+                fingerprint_cache=self.duplicate_fingerprint_cache,
+            )
+            for group in duplicate_groups:
+                summary["duplicate_groups"].append(group)
+                summary["issues"].append(
+                    {
+                        "path": "\n".join(
+                            info["path"] for info in group["files"]
+                        ),
+                        "message": (
+                            "DOUBLON AUDIO EXACT"
+                            if group["kind"] == "exact"
+                            else (
+                                "DOUBLON AUDIO PROBABLE · "
+                                f"similarité sonore {group['similarity']:.1f}%"
+                            )
+                        ),
+                    }
+                )
+            for path, error in duplicate_errors:
+                summary["issues"].append(
+                    {
+                        "path": path,
+                        "message": f"ANALYSE DE DOUBLON IMPOSSIBLE : {error}",
+                    }
+                )
+
             for root, folders, files in os.walk(MONITORED_FOLDER):
                 folders[:] = [
                     folder
@@ -433,8 +473,145 @@ class MonitoringMixin:
             fg=WARNING if issue_count else SUCCESS,
             cursor="hand2" if issue_count else "",
         )
+        if summary["duplicate_groups"]:
+            self.after_idle(
+                lambda groups=summary["duplicate_groups"]:
+                    self.review_duplicate_groups(groups)
+            )
         if config.ENABLE_FOLDER_MONITORING:
             self.schedule_folder_scan(MONITOR_INTERVAL_MS)
+
+    def review_duplicate_groups(self, groups):
+        for group in groups:
+            if not duplicate_group_is_current(group):
+                continue
+            key = duplicate_group_key(group)
+            if key in self.reviewed_duplicate_keys:
+                continue
+            self.reviewed_duplicate_keys.add(key)
+            self.show_duplicate_review(group)
+
+    def show_duplicate_review(self, group):
+        dialog = tk.Toplevel(self)
+        dialog.title("Doublon audio à vérifier")
+        dialog.geometry("760x560")
+        dialog.minsize(580, 420)
+        dialog.configure(bg=BG)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        tk.Label(
+            dialog,
+            text=(
+                "Doublon exact"
+                if group["kind"] == "exact"
+                else "Fichiers audio probablement similaires"
+            ),
+            bg=BG,
+            fg=TEXT,
+            font=("Segoe UI", 15, "bold"),
+        ).pack(anchor="w", padx=20, pady=(18, 4))
+        tk.Label(
+            dialog,
+            text=(
+                f"{group['reason']} Similarité sonore : "
+                f"{group['similarity']:.1f} %. "
+                "Vérifie les informations avant toute suppression."
+            ),
+            bg=BG,
+            fg=MUTED,
+            font=("Segoe UI", 9),
+            wraplength=700,
+            justify="left",
+        ).pack(anchor="w", padx=20, pady=(0, 14))
+
+        content = tk.Frame(dialog, bg=BG)
+        content.pack(fill="both", expand=True, padx=20)
+        for index, file_info in enumerate(group["files"], start=1):
+            card = tk.Frame(
+                content,
+                bg=CARD,
+                highlightbackground=BORDER,
+                highlightthickness=1,
+            )
+            card.pack(fill="x", pady=(0, 10))
+            tk.Label(
+                card,
+                text=f"Fichier {index}",
+                bg=CARD,
+                fg=TEXT,
+                font=("Segoe UI", 10, "bold"),
+            ).pack(anchor="w", padx=14, pady=(12, 4))
+            tk.Label(
+                card,
+                text=format_file_details(file_info),
+                bg=CARD,
+                fg=MUTED,
+                font=("Segoe UI", 8),
+                justify="left",
+                anchor="w",
+                wraplength=680,
+            ).pack(fill="x", padx=14)
+
+            def delete_candidate(candidate=file_info):
+                confirmed = messagebox.askyesno(
+                    "Confirmer la suppression",
+                    "Supprimer définitivement ce fichier audio ?\n\n"
+                    f"{format_file_details(candidate)}",
+                    parent=dialog,
+                )
+                if not confirmed:
+                    return
+                try:
+                    delete_review_file(candidate)
+                except OSError as error:
+                    messagebox.showerror(
+                        "Suppression impossible",
+                        str(error),
+                        parent=dialog,
+                    )
+                    return
+                self.duplicate_hash_cache.pop(candidate["cache_key"], None)
+                self.duplicate_fingerprint_cache.pop(
+                    candidate["cache_key"],
+                    None,
+                )
+                dialog.destroy()
+                self.run_folder_scan(automatic=False)
+
+            tk.Button(
+                card,
+                text="Supprimer ce fichier…",
+                command=delete_candidate,
+                bg=CARD_2,
+                fg=TEXT,
+                activebackground=DANGER,
+                activeforeground="white",
+                relief="flat",
+                borderwidth=0,
+                cursor="hand2",
+                font=("Segoe UI", 8, "bold"),
+                padx=10,
+                pady=6,
+            ).pack(anchor="e", padx=14, pady=10)
+
+        tk.Button(
+            dialog,
+            text="Garder tous les fichiers",
+            command=dialog.destroy,
+            bg=ACCENT,
+            fg="white",
+            activebackground=ACCENT_HOVER,
+            activeforeground="white",
+            relief="flat",
+            borderwidth=0,
+            cursor="hand2",
+            font=("Segoe UI", 9, "bold"),
+            padx=16,
+            pady=8,
+        ).pack(anchor="e", padx=20, pady=16)
+        self.polish_widget_tree(dialog)
+        self.wait_window(dialog)
 
     def show_monitor_issues(self, event=None):
 

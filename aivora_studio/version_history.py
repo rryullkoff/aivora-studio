@@ -115,4 +115,55 @@ VERSION_HISTORY = (
             "vers la destination.",
         ),
     ),
+    (
+        "1.0.008",
+        "Déplacement automatique après enregistrement",
+        (
+            "Déplacer automatiquement vers le dossier LEAK.BM31K tout fichier "
+            "enregistré, quelle que soit son origine, dans les interfaces "
+            "Tkinter et PySide6.",
+            "Conserver les fichiers existants en choisissant automatiquement "
+            "un nom disponible en cas de doublon.",
+            "Retirer le choix manuel et l’option désactivable de déplacement "
+            "de l’aperçu PySide6.",
+        ),
+    ),
+    (
+        "1.0.009",
+        "Migration visuelle progressive",
+        (
+            "Proposer dans les paramètres principaux les palettes définies "
+            "pour PySide6, tout en conservant Tkinter et ses fonctionnalités "
+            "comme interface principale pendant la migration.",
+        ),
+    ),
+    (
+        "1.0.010",
+        "Détection des doublons audio",
+        (
+            "Détecter les fichiers binaires identiques et les sons très "
+            "similaires après réencodage ou légère modification, en combinant "
+            "leur spectre audio et la ressemblance de leurs noms/tags.",
+            "Demander de vérifier chaque nouveau groupe avec titre, artiste, "
+            "album, durée, taille, chemin et score de similarité.",
+            "Ne supprimer aucun fichier sans confirmation explicite ; "
+            "permettre de garder les deux ou de choisir le fichier à supprimer.",
+            "Mettre en cache les empreintes, ignorer le dossier exclu et "
+            "signaler clairement les fichiers illisibles.",
+        ),
+    ),
+    (
+        "1.0.011 BETA",
+        "Rangement dans le dossier du premier artiste",
+        (
+            "Proposer les noms des dossiers artiste existants dans les champs "
+            "Artiste des interfaces principales et PySide6.",
+            "Créer le dossier depuis l’outil si le premier artiste n’existe "
+            "pas encore.",
+            "À l’enregistrement, ranger le fichier uniquement dans le dossier "
+            "du premier artiste ; les autres artistes restent dans les tags.",
+            "Conserver le déplacement après sauvegarde en évitant d’écraser "
+            "les fichiers existants.",
+        ),
+    ),
 )

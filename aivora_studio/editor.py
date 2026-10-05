@@ -33,6 +33,8 @@ from .helpers import (
     get_extension,
     uppercase_text,
 )
+from .file_operations import move_file_to_folder
+from .artist_folders import get_or_create_artist_folder
 
 
 class EditorMixin:
@@ -676,7 +678,7 @@ class EditorMixin:
         ).strip()
         artist_name = artists[0].strip()
 
-        if folder_name.casefold() == artist_name.casefold():
+        if folder_name.casefold() == clean_filename(artist_name).casefold():
             return None
 
         return folder_name, artist_name
@@ -723,15 +725,66 @@ class EditorMixin:
             # 3. Renommage
             if config.ENABLE_FILE_RENAMING:
                 self.rename_file()
-            folder_warning = self.get_artist_folder_warning()
+            source_path = self.current_file
+            self.audio = None
+            try:
+                first_artist = artists[0] if artists else "ARTISTE INCONNU"
+                artist_folder = get_or_create_artist_folder(
+                    config.MONITORED_FOLDER,
+                    first_artist,
+                )
+                self.current_file = move_file_to_folder(
+                    source_path,
+                    artist_folder,
+                )
+            except OSError as error:
+                self.load_file(source_path)
+                self.status_label.config(
+                    text="Enregistré · déplacement impossible",
+                    fg=WARNING,
+                )
+                messagebox.showerror(
+                    "DÉPLACEMENT IMPOSSIBLE",
+                    "LES MÉTADONNÉES ONT BIEN ÉTÉ ENREGISTRÉES, MAIS LE "
+                    "FICHIER N'A PAS PU ÊTRE RANGÉ DANS LE DOSSIER DU "
+                    f"PREMIER ARTISTE « {first_artist} » SOUS :\n"
+                    f"{config.MONITORED_FOLDER}\n\n"
+                    f"LE FICHIER EST RESTÉ ICI :\n{source_path}\n\n{error}",
+                )
+                return
+            except ValueError as error:
+                self.load_file(source_path)
+                self.status_label.config(
+                    text="Enregistré · dossier artiste invalide",
+                    fg=WARNING,
+                )
+                messagebox.showerror(
+                    "DOSSIER ARTISTE IMPOSSIBLE",
+                    "LES MÉTADONNÉES ONT ÉTÉ ENREGISTRÉES, MAIS LE DOSSIER "
+                    f"DU PREMIER ARTISTE N'A PAS PU ÊTRE UTILISÉ :\n\n{error}",
+                )
+                return
+
+            self.artist_folder_names = sorted(
+                set(self.artist_folder_names) | {os.path.basename(artist_folder)},
+                key=str.casefold,
+            )
+            for item in self.artist_entries:
+                self.refresh_artist_option_menu(item)
 
             # 4. Recharge le fichier avec ses nouvelles métadonnées
             self.load_file(self.current_file)
+            self.refresh_quick_selection()
+            folder_warning = self.get_artist_folder_warning()
 
             filename = os.path.basename(self.current_file)
+            destination_message = (
+                f"\n\nFICHIER DÉPLACÉ DANS LE DOSSIER DU PREMIER ARTISTE :\n"
+                f"{artist_folder}"
+            )
 
             self.status_label.config(
-                text=f"Enregistré · {filename}",
+                text=f"Enregistré · déplacé · {filename}",
                 fg=WARNING if folder_warning else SUCCESS,
             )
 
@@ -742,10 +795,10 @@ class EditorMixin:
                     (
                         "LES MODIFICATIONS ONT BIEN ÉTÉ ENREGISTRÉES.\n\n"
                         f"NOUVEAU NOM :\n{filename.upper()}\n\n"
-                        f"LE DOSSIER « {folder_name} » NE CORRESPOND PAS "
-                        f"AU PREMIER ARTISTE « {artist_name} ».\n"
-                        f"RANGE CE FICHIER DANS UN DOSSIER NOMMÉ "
-                        f"« {artist_name} » SI C'EST L'EMPLACEMENT SOUHAITÉ."
+                        f"FICHIER DÉPLACÉ VERS :\n{artist_folder}\n\n"
+                        f"LE DOSSIER D'ORIGINE « {folder_name} » NE "
+                        f"CORRESPONDAIT PAS AU PREMIER ARTISTE "
+                        f"« {artist_name} »."
                     ),
                 )
             else:
@@ -754,6 +807,7 @@ class EditorMixin:
                     (
                         "✓ LES MODIFICATIONS ONT ÉTÉ ENREGISTRÉES.\n\n"
                         f"NOUVEAU NOM :\n{filename.upper()}"
+                        f"{destination_message}"
                     ),
                 )
 

@@ -57,6 +57,18 @@ from mutagen.mp4 import MP4, MP4Cover
 from shiboken6 import delete as delete_qobject
 
 from . import config
+from .file_operations import move_file_to_folder
+from .artist_folders import (
+    get_or_create_artist_folder,
+    list_artist_folder_names,
+)
+from .duplicates import (
+    delete_review_file,
+    duplicate_group_is_current,
+    duplicate_group_key,
+    find_audio_duplicates,
+    format_file_details,
+)
 from .config import VERSION
 from .helpers import clean_filename, image_to_jpeg, uppercase_text
 from .version_history import VERSION_HISTORY
@@ -170,6 +182,45 @@ class QuickSelectionScan(QThread):
         self.completed.emit(files, errors)
 
 
+class DuplicateScan(QThread):
+
+    def __init__(self, hash_cache, fingerprint_cache, parent=None):
+        super().__init__(parent)
+        self.hash_cache = hash_cache
+        self.fingerprint_cache = fingerprint_cache
+
+    completed = Signal(object, object)
+
+    def run(self):
+        duplicates, errors = find_audio_duplicates(
+            config.MONITORED_FOLDER,
+            config.EXCLUDED_FOLDER,
+            config.AUDIO_EXTENSIONS,
+            should_cancel=self.isInterruptionRequested,
+            hash_cache=self.hash_cache,
+            fingerprint_cache=self.fingerprint_cache,
+        )
+        if not self.isInterruptionRequested():
+            self.completed.emit(duplicates, errors)
+
+
+class ArtistFolderScan(QThread):
+
+    completed = Signal(object, object)
+
+    def run(self):
+        try:
+            names, errors = list_artist_folder_names(
+                config.MONITORED_FOLDER,
+                config.EXCLUDED_FOLDER,
+                should_cancel=self.isInterruptionRequested,
+            )
+        except (OSError, ValueError, RuntimeError) as error:
+            names, errors = [], [(config.MONITORED_FOLDER, str(error))]
+        if not self.isInterruptionRequested():
+            self.completed.emit(names, errors)
+
+
 class PreviewWindow(QMainWindow):
 
     TRACK_TYPES = ("LIVE", "STUDIO", "EXTRAIT", "MAP")
@@ -185,11 +236,7 @@ class PreviewWindow(QMainWindow):
         "Sélection rapide",
         "Renommage automatique",
         "Vérification du dossier artiste",
-        "Déplacer après enregistrement",
     )
-    FEATURE_DEFAULTS = {
-        "Déplacer après enregistrement": True,
-    }
 
     def __init__(self, preferences=None):
         super().__init__()
@@ -218,19 +265,26 @@ class PreviewWindow(QMainWindow):
         apply_density(self.density_name)
         self.selected_types = set()
         self.current_audio_path = ""
-        self.loaded_from_quick_selection = False
         self.audio_is_playing = False
         self.cover_data = None
         self.cover_changed = False
         self.audio_pcm = b""
         self.audio_duration_ms = 0
         self.audio_process = None
+        self.duplicate_groups = []
+        self.duplicate_errors = []
+        self.reviewed_duplicate_keys = set()
+        self.duplicate_hash_cache = {}
+        self.duplicate_fingerprint_cache = {}
+        self.duplicate_results_layout = None
+        self.duplicate_rescan_requested = False
+        self.artist_folder_names = []
         self.audio_output = QAudioOutput(self)
         self.create_media_player()
         self.feature_toggles = {
             label: self.preferences.value(
                 f"features/{label}",
-                self.FEATURE_DEFAULTS.get(label, True),
+                True,
                 type=bool,
             )
             for label in self.FEATURE_LABELS
@@ -390,11 +444,20 @@ class PreviewWindow(QMainWindow):
             "NOM DU SON",
             "Titre du morceau",
         )
-        self.artist_input = self.add_field(
-            fields_layout,
-            "ARTISTE",
-            "Nom de l’artiste",
+        artist_title = QLabel("ARTISTE")
+        artist_title.setProperty("role", "eyebrow")
+        fields_layout.addWidget(artist_title)
+        self.artist_input = QComboBox()
+        self.artist_input.setEditable(True)
+        self.artist_input.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.artist_input.setPlaceholderText("Choisis ou crée le premier artiste")
+        self.artist_input.lineEdit().setPlaceholderText(
+            "Choisis ou crée le premier artiste"
         )
+        self.artist_input.setToolTip(
+            "Le fichier sera rangé uniquement dans le dossier du premier artiste."
+        )
+        fields_layout.addWidget(self.artist_input)
 
         type_title = QLabel("TYPE")
         type_title.setProperty("role", "eyebrow")
@@ -533,7 +596,7 @@ class PreviewWindow(QMainWindow):
         footer.addWidget(self.save_status)
         footer.addStretch(1)
         self.file_placement_hint = QLabel(
-            "Emplacement artiste · vérification visuelle uniquement."
+            "Enregistrement · déplacement vers le dossier du premier artiste."
         )
         self.file_placement_hint.setProperty("role", "muted")
         footer.addWidget(self.file_placement_hint)
@@ -549,6 +612,8 @@ class PreviewWindow(QMainWindow):
         self.apply_feature_visibility()
         self.apply_density_to_widget(self)
         self.refresh_quick_selection()
+        self.start_duplicate_scan()
+        self.refresh_artist_folder_options()
 
     def apply_appearance(
         self,
@@ -690,7 +755,6 @@ class PreviewWindow(QMainWindow):
             self.show_selected_file(path)
 
     def show_selected_file(self, path):
-        self.loaded_from_quick_selection = False
         try:
             audio = File(path, easy=False)
             if audio is None:
@@ -775,7 +839,7 @@ class PreviewWindow(QMainWindow):
         self.bpm_badge.setText(
             f"BPM · {metadata['bpm']}" if metadata["bpm"] else "BPM · —"
         )
-        self.artist_input.setText(metadata["artist"])
+        self.artist_input.setCurrentText(metadata["artist"])
         for track_type, button in self.type_buttons.items():
             button.setChecked(track_type in track_types)
 
@@ -1148,8 +1212,6 @@ class PreviewWindow(QMainWindow):
 
     def load_from_quick_selection(self, path):
         self.show_selected_file(path)
-        if os.path.normcase(path) == os.path.normcase(self.current_audio_path):
-            self.loaded_from_quick_selection = True
 
     def save_preview(self):
         if not self.current_audio_path:
@@ -1199,26 +1261,49 @@ class PreviewWindow(QMainWindow):
                 )
                 return
 
-        route_message = ""
-        if (
-            self.feature_toggles["Déplacer après enregistrement"]
-            and self.loaded_from_quick_selection
-            and self.is_excluded_audio(self.current_audio_path)
-        ):
-            try:
-                route_message = self.move_saved_file_from_quick_selection()
-            except OSError as error:
-                self.save_status.setText(
-                    "Métadonnées enregistrées, mais déplacement impossible : "
-                    f"{error}"
-                )
-                QMessageBox.critical(
-                    self,
-                    "Déplacement impossible",
-                    "Les métadonnées ont été enregistrées, mais le fichier "
-                    f"est resté à son emplacement source :\n\n{error}",
-                )
-                return
+        source_path = self.current_audio_path
+        try:
+            first_artist = re.split(
+                r"\s*&\s*|\s*;\s*",
+                values["artist"] or "ARTISTE INCONNU",
+                maxsplit=1,
+            )[0]
+            artist_folder = get_or_create_artist_folder(
+                config.MONITORED_FOLDER,
+                first_artist,
+            )
+            self.current_audio_path = move_file_to_folder(
+                source_path,
+                artist_folder,
+            )
+        except (OSError, ValueError) as error:
+            self.save_status.setText(
+                "Métadonnées enregistrées, mais déplacement impossible : "
+                f"{error}"
+            )
+            QMessageBox.critical(
+                self,
+                "Déplacement impossible",
+                "Les métadonnées ont bien été enregistrées, mais le fichier "
+                "n’a pas pu être rangé dans le dossier du premier artiste "
+                f"« {first_artist} » sous {config.MONITORED_FOLDER}.\n\n"
+                f"Le fichier est resté ici : {source_path}\n\n{error}",
+            )
+            self.media_player.setSource(
+                QUrl.fromLocalFile(os.path.abspath(source_path))
+            )
+            return
+
+        self.refresh_artist_folder_options()
+        self.show_artist_folder_warning(values)
+        route_message = (
+            " · déjà dans le dossier de destination"
+            if os.path.normcase(source_path)
+            == os.path.normcase(self.current_audio_path)
+            else f" · rangé dans {artist_folder}"
+        )
+        if self.feature_toggles["Sélection rapide"]:
+            self.refresh_quick_selection()
 
         filename = os.path.basename(self.current_audio_path)
         self.file_label.setText(self.current_audio_path)
@@ -1232,27 +1317,12 @@ class PreviewWindow(QMainWindow):
         )
         self.preview_status.setText(
             f"Fichier enregistré et déplacé vers {self.current_audio_path}."
-            if "déplacé vers" in route_message
+            if "rangé dans" in route_message
             else "Les tags ont été enregistrés dans le fichier audio."
         )
         self.media_player.setSource(
             QUrl.fromLocalFile(os.path.abspath(self.current_audio_path))
         )
-        self.show_artist_folder_warning(values)
-
-    @staticmethod
-    def is_excluded_audio(path):
-        if not path:
-            return False
-        excluded = os.path.abspath(config.EXCLUDED_FOLDER)
-        candidate = os.path.abspath(path)
-        try:
-            return (
-                os.path.commonpath((candidate, excluded)).casefold()
-                == excluded.casefold()
-            )
-        except ValueError:
-            return False
 
     def create_media_player(self):
         self.media_player = QMediaPlayer(self)
@@ -1271,77 +1341,13 @@ class PreviewWindow(QMainWindow):
         delete_qobject(player)
         self.create_media_player()
 
-    def move_saved_file_from_quick_selection(self):
-        previous_destination = self.preferences.value(
-            "routing/last_destination",
-            config.MONITORED_FOLDER,
-            type=str,
-        )
-        destination_folder = QFileDialog.getExistingDirectory(
-            self,
-            "Choisir où déplacer le fichier modifié",
-            previous_destination,
-            QFileDialog.Option.ShowDirsOnly,
-        )
-        if not destination_folder:
-            return (
-                " · déplacement annulé, fichier conservé dans le dossier exclu"
-            )
-
-        source = os.path.abspath(self.current_audio_path)
-        destination = os.path.join(
-            os.path.abspath(destination_folder),
-            os.path.basename(source),
-        )
-        if os.path.normcase(source) == os.path.normcase(destination):
-            self.loaded_from_quick_selection = False
-            return " · déjà dans le dossier choisi"
-
-        if os.path.exists(destination):
-            answer = QMessageBox.question(
-                self,
-                "Fichier déjà présent",
-                f"{os.path.basename(destination)} existe déjà dans le dossier "
-                "choisi. Veux-tu le remplacer ?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                return (
-                    " · déplacement annulé, fichier conservé dans le dossier exclu"
-                )
-
-        temporary_path = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                prefix=".aivora-move-",
-                suffix=os.path.splitext(destination)[1],
-                dir=destination_folder,
-                delete=False,
-            ) as temporary_file:
-                temporary_path = temporary_file.name
-            shutil.copy2(source, temporary_path)
-            os.replace(temporary_path, destination)
-            temporary_path = None
-            os.remove(source)
-        except OSError:
-            if temporary_path and os.path.exists(temporary_path):
-                os.remove(temporary_path)
-            raise
-
-        self.current_audio_path = destination
-        self.loaded_from_quick_selection = False
-        self.preferences.setValue("routing/last_destination", destination_folder)
-        self.refresh_quick_selection()
-        return f" · déplacé vers {destination_folder}"
-
     def collect_metadata(self):
         values = {
             key: uppercase_text(field.text())
             for key, field in self.metadata_fields.items()
         }
         values["title"] = uppercase_text(self.title_input.text())
-        values["artist"] = uppercase_text(self.artist_input.text())
+        values["artist"] = uppercase_text(self.artist_input.currentText())
         if not values["artist"]:
             values["artist"] = "ARTISTE INCONNU"
 
@@ -1667,14 +1673,14 @@ class PreviewWindow(QMainWindow):
         self.current_audio_path = destination
         return " · fichier renommé"
 
-    def show_artist_folder_warning(self, values):
+    def show_artist_folder_warning(self, values, audio_path=None):
         if (
             not config.ENABLE_ARTIST_FOLDER_CHECK
             or not self.feature_toggles["Vérification du dossier artiste"]
             or not values["artist"]
         ):
             return
-        path = os.path.abspath(self.current_audio_path)
+        path = os.path.abspath(audio_path or self.current_audio_path)
         excluded = os.path.abspath(config.EXCLUDED_FOLDER)
         try:
             if os.path.commonpath((path, excluded)).casefold() == excluded.casefold():
@@ -1685,7 +1691,7 @@ class PreviewWindow(QMainWindow):
         folder = os.path.basename(os.path.dirname(path)).strip()
         artist = re.split(r"\s*&\s*|\s*;\s*", values["artist"], maxsplit=1)[0]
         artist = artist.strip()
-        if folder.casefold() == artist.casefold():
+        if folder.casefold() == clean_filename(artist).casefold():
             return
         QMessageBox.warning(
             self,
@@ -1897,11 +1903,11 @@ class PreviewWindow(QMainWindow):
         next_release.setProperty("card", True)
         next_layout = QVBoxLayout(next_release)
         next_layout.setContentsMargins(14, 12, 14, 12)
-        next_heading = QLabel("1.0.008 · Outils et paramètres")
+        next_heading = QLabel("1.0.012 · Migration visuelle progressive")
         next_heading.setProperty("role", "subtitle")
         next_detail = QLabel(
-            "Prochaine étape prévue : migrer conversion, réparation et anomalies, "
-            "puis terminer la validation et les paramètres."
+            "Continuer à rapprocher l’interface principale de PySide6 sans "
+            "retirer les fonctions Tkinter qui n’ont pas encore été migrées."
         )
         next_detail.setProperty("role", "muted")
         next_detail.setWordWrap(True)
@@ -1920,39 +1926,274 @@ class PreviewWindow(QMainWindow):
     def show_anomalies(self):
         dialog, layout = self.create_preview_dialog(
             "Aivora Studio • Anomalies",
-            "620x440",
+            "700x560",
         )
         title = QLabel("Anomalies détectées")
         title.setProperty("role", "title")
         layout.addWidget(title)
         warning = QLabel(
-            "Exemple visuel — les anomalies ci-dessous sont fictives."
+            "Recherche les fichiers audio identiques et les sons très "
+            "similaires dans le dossier surveillé, hors dossier exclu."
         )
         warning.setProperty("role", "muted")
+        warning.setWordWrap(True)
         layout.addWidget(warning)
 
-        for name, description in (
-            ("fichier_incomplet.mp3", "Fichier audio corrompu ou incomplet"),
-            ("EXPORT.wav", "Un MP3 du même nom existe déjà"),
-        ):
-            card = QFrame()
-            card.setProperty("card", True)
-            card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(14, 12, 14, 12)
-            file_name = QLabel(name)
-            file_name.setProperty("role", "subtitle")
-            issue = QLabel(description)
-            issue.setProperty("role", "muted")
-            issue.setWordWrap(True)
-            card_layout.addWidget(file_name)
-            card_layout.addWidget(issue)
-            layout.addWidget(card)
-        layout.addStretch(1)
+        refresh = QPushButton("Analyser maintenant")
+        refresh.clicked.connect(self.start_duplicate_scan)
+        layout.addWidget(refresh)
+
+        results_scroll = QScrollArea()
+        results_scroll.setWidgetResizable(True)
+        results_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        results = QWidget()
+        self.duplicate_results_layout = QVBoxLayout(results)
+        self.duplicate_results_layout.setContentsMargins(0, 0, 8, 0)
+        self.duplicate_results_layout.setSpacing(10)
+        results_layout = self.duplicate_results_layout
+        dialog.finished.connect(
+            lambda result, layout=results_layout:
+                self.clear_duplicate_results_layout(layout)
+        )
+        results_scroll.setWidget(results)
+        layout.addWidget(results_scroll, 1)
+        self.populate_duplicate_results()
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(dialog.reject)
         close.accepted.connect(dialog.accept)
         layout.addWidget(close)
         dialog.exec()
+
+    def start_duplicate_scan(self):
+        if (
+            hasattr(self, "duplicate_scan")
+            and self.duplicate_scan.isRunning()
+        ):
+            return
+        self.anomalies_button.setText("Anomalies · analyse…")
+        self.duplicate_scan = DuplicateScan(
+            self.duplicate_hash_cache,
+            self.duplicate_fingerprint_cache,
+            self,
+        )
+        self.duplicate_scan.completed.connect(self.finish_duplicate_scan)
+        self.duplicate_scan.start()
+
+    def finish_duplicate_scan(self, duplicates, errors):
+        self.duplicate_groups = duplicates
+        self.duplicate_errors = errors
+        count = len(duplicates) + len(errors)
+        self.anomalies_button.setText(f"Anomalies · {count}")
+        self.populate_duplicate_results()
+        for group in duplicates:
+            if not duplicate_group_is_current(group):
+                continue
+            key = duplicate_group_key(group)
+            if key in self.reviewed_duplicate_keys:
+                continue
+            self.reviewed_duplicate_keys.add(key)
+            self.show_duplicate_review(group)
+        if self.duplicate_rescan_requested:
+            self.duplicate_rescan_requested = False
+            self.start_duplicate_scan()
+
+    def refresh_artist_folder_options(self):
+        if (
+            hasattr(self, "artist_folder_scan")
+            and self.artist_folder_scan.isRunning()
+        ):
+            return
+        self.artist_folder_scan = ArtistFolderScan(self)
+        self.artist_folder_scan.completed.connect(
+            self.finish_artist_folder_scan
+        )
+        self.artist_folder_scan.start()
+
+    def finish_artist_folder_scan(self, names, errors):
+        current = self.artist_input.currentText()
+        self.artist_folder_names = names
+        self.artist_input.clear()
+        self.artist_input.addItems(names)
+        self.artist_input.setCurrentText(current)
+        if errors:
+            self.artist_input.setToolTip(
+                "Certains dossiers n’ont pas pu être lus :\n"
+                + "\n".join(f"{path}: {error}" for path, error in errors)
+            )
+            self.preview_status.setText(
+                f"{len(errors)} erreur(s) pendant la recherche des dossiers "
+                "artiste ; détails dans l’infobulle du champ Artiste."
+            )
+        else:
+            self.artist_input.setToolTip("")
+
+    def populate_duplicate_results(self):
+        if self.duplicate_results_layout is None:
+            return
+        while self.duplicate_results_layout.count():
+            item = self.duplicate_results_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        if not self.duplicate_groups and not self.duplicate_errors:
+            result = QLabel(
+                "Analyse en cours…"
+                if (
+                    hasattr(self, "duplicate_scan")
+                    and self.duplicate_scan.isRunning()
+                )
+                else "Aucun doublon audio exact ou probable détecté."
+            )
+            result.setProperty("role", "muted")
+            result.setWordWrap(True)
+            self.duplicate_results_layout.addWidget(result)
+
+        for index, group in enumerate(self.duplicate_groups, start=1):
+            card = QFrame()
+            card.setProperty("card", True)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(14, 12, 14, 12)
+            heading = QLabel(
+                (
+                    f"Doublon exact {index}"
+                    if group["kind"] == "exact"
+                    else f"Doublon probable {index} · {group['similarity']:.1f}%"
+                )
+            )
+            heading.setProperty("role", "subtitle")
+            card_layout.addWidget(heading)
+            reason = QLabel(group["reason"])
+            reason.setProperty("role", "muted")
+            reason.setWordWrap(True)
+            card_layout.addWidget(reason)
+            for info in group["files"]:
+                details = QLabel(format_file_details(info))
+                details.setProperty("role", "muted")
+                details.setWordWrap(True)
+                card_layout.addWidget(details)
+            review = QPushButton("Examiner / supprimer…")
+            review.clicked.connect(
+                lambda checked=False, candidate=group:
+                    self.show_duplicate_review(candidate)
+            )
+            card_layout.addWidget(review)
+            self.duplicate_results_layout.addWidget(card)
+
+        for path, error in self.duplicate_errors:
+            card = QFrame()
+            card.setProperty("card", True)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(14, 12, 14, 12)
+            heading = QLabel("Lecture impossible pendant l’analyse")
+            heading.setProperty("role", "subtitle")
+            details = QLabel(f"{path}\n{error}")
+            details.setProperty("role", "muted")
+            details.setWordWrap(True)
+            card_layout.addWidget(heading)
+            card_layout.addWidget(details)
+            self.duplicate_results_layout.addWidget(card)
+        self.duplicate_results_layout.addStretch(1)
+
+    def clear_duplicate_results_layout(self, layout):
+        if self.duplicate_results_layout is layout:
+            self.duplicate_results_layout = None
+
+    def show_duplicate_review(self, group):
+        if not duplicate_group_is_current(group):
+            QMessageBox.information(
+                self,
+                "Analyse à actualiser",
+                "Au moins un fichier a changé depuis l’analyse. Relance "
+                "l’analyse des anomalies avant de vérifier ce groupe.",
+            )
+            self.start_duplicate_scan()
+            return
+        dialog, layout = self.create_preview_dialog(
+            "Aivora Studio • Vérifier un doublon",
+            "720x560",
+        )
+        title = QLabel(
+            "Doublon exact"
+            if group["kind"] == "exact"
+            else "Fichiers audio probablement similaires"
+        )
+        title.setProperty("role", "title")
+        layout.addWidget(title)
+        details = QLabel(
+            f"{group['reason']} Similarité sonore : "
+            f"{group['similarity']:.1f} %. Vérifie les informations avant "
+            "toute suppression."
+        )
+        details.setProperty("role", "muted")
+        details.setWordWrap(True)
+        layout.addWidget(details)
+
+        files_scroll = QScrollArea()
+        files_scroll.setWidgetResizable(True)
+        files_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        files_content = QWidget()
+        files_layout = QVBoxLayout(files_content)
+        files_layout.setContentsMargins(0, 0, 8, 0)
+        files_layout.setSpacing(10)
+        for index, file_info in enumerate(group["files"], start=1):
+            card = QFrame()
+            card.setProperty("card", True)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(14, 12, 14, 12)
+            file_title = QLabel(f"Fichier {index}")
+            file_title.setProperty("role", "subtitle")
+            file_details = QLabel(format_file_details(file_info))
+            file_details.setProperty("role", "muted")
+            file_details.setWordWrap(True)
+            card_layout.addWidget(file_title)
+            card_layout.addWidget(file_details)
+            delete_button = QPushButton("Supprimer ce fichier…")
+            delete_button.clicked.connect(
+                lambda checked=False, candidate=file_info:
+                    self.confirm_duplicate_deletion(dialog, candidate)
+            )
+            card_layout.addWidget(delete_button)
+            files_layout.addWidget(card)
+        files_scroll.setWidget(files_content)
+        layout.addWidget(files_scroll, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.reject)
+        buttons.accepted.connect(dialog.accept)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText(
+            "Garder tous les fichiers"
+        )
+        layout.addWidget(buttons)
+        self.apply_density_to_widget(dialog)
+        dialog.exec()
+
+    def confirm_duplicate_deletion(self, dialog, file_info):
+        answer = QMessageBox.question(
+            dialog,
+            "Confirmer la suppression",
+            "Supprimer définitivement ce fichier audio ?\n\n"
+            f"{format_file_details(file_info)}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            delete_review_file(file_info)
+        except OSError as error:
+            QMessageBox.critical(
+                dialog,
+                "Suppression impossible",
+                str(error),
+            )
+            return
+        self.duplicate_hash_cache.pop(file_info["cache_key"], None)
+        self.duplicate_fingerprint_cache.pop(
+            file_info["cache_key"],
+            None,
+        )
+        self.duplicate_rescan_requested = True
+        dialog.accept()
 
     def show_settings(self):
         dialog, layout = self.create_preview_dialog(
@@ -2028,9 +2269,9 @@ class PreviewWindow(QMainWindow):
         feature_heading.setProperty("role", "subtitle")
         feature_layout.addWidget(feature_heading)
         routing_help = QLabel(
-            "Si le déplacement est activé, après l’enregistrement d’un son "
-            "ouvert depuis le rail, tu pourras choisir son dossier de destination. "
-            f"Le dossier proposé sera : {config.MONITORED_FOLDER}"
+            "Après chaque enregistrement, le fichier est rangé dans le dossier "
+            "du premier artiste, sous : "
+            f"{config.MONITORED_FOLDER} — seul l’artiste 1 reçoit le fichier."
         )
         routing_help.setProperty("role", "muted")
         routing_help.setWordWrap(True)
@@ -2120,6 +2361,18 @@ class PreviewWindow(QMainWindow):
         ):
             self.quick_selection_scan.requestInterruption()
             self.quick_selection_scan.wait()
+        if (
+            hasattr(self, "duplicate_scan")
+            and self.duplicate_scan.isRunning()
+        ):
+            self.duplicate_scan.requestInterruption()
+            self.duplicate_scan.wait()
+        if (
+            hasattr(self, "artist_folder_scan")
+            and self.artist_folder_scan.isRunning()
+        ):
+            self.artist_folder_scan.requestInterruption()
+            self.artist_folder_scan.wait()
         super().closeEvent(event)
 
 

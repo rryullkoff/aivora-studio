@@ -42,12 +42,19 @@ calculée par FFmpeg, la lecture et le déplacement dans le morceau avec Qt
 Multimedia, ainsi qu'une estimation du BPM.
 
 Le rail PySide6 se remplit de manière asynchrone depuis le dossier exclu.
-Après enregistrement d'un fichier ouvert depuis ce rail, le déplacement vers
-un dossier choisi est activé par défaut et peut être désactivé dans les
-paramètres. Le dossier surveillé configuré est proposé par défaut
-(`C:\Users\basti\Desktop\iCloudDrive\LEAK.BM31K`). Une destination existante
-demande confirmation et la source n'est supprimée qu'après copie réussie.
-L'application Tkinter reste le lancement par défaut pendant la migration.
+Après chaque enregistrement, le fichier est rangé uniquement dans le dossier
+du premier artiste sous le dossier surveillé ; s'il n'existe pas, il est créé.
+Les artistes suivants restent inscrits dans les tags et ne reçoivent pas une
+copie du son. En cas de nom de fichier déjà utilisé, un nom disponible est
+choisi sans écraser l'existant.
+
+L'analyse des doublons recherche les fichiers identiques et les fichiers audio
+très proches après réencodage ou légère modification. Elle combine un spectre
+sonore FFmpeg avec les noms et tags comme indices, puis présente les
+informations de chaque groupe. Aucun fichier n'est supprimé sans confirmation.
+Le dossier exclu est ignoré. Les palettes PySide6 sont sélectionnables dans
+les paramètres de l'interface principale Tkinter ; ses fonctions sont
+conservées pendant la migration.
 La feuille de route des correctifs et de la livraison 1.1 est dans
 [`UPDATE.md`](./UPDATE.md).
 
@@ -92,8 +99,14 @@ disponible comme ancien point de lancement.
 - Fenêtre Versions : historique des demandes et changements par version,
   incluant les demandes fonctionnelles initiales avant la remise à zéro en 1.0 ;
   le même historique est utilisé dans l’application Python et l’aperçu PySide6.
-- Le déplacement après édition des fichiers ouverts depuis le rail peut être
-  activé ou désactivé dans les paramètres de l'aperçu.
+- À l'enregistrement, ranger le fichier dans le dossier du premier artiste et
+  créer ce dossier si nécessaire. Les artistes 2+ restent uniquement dans les
+  métadonnées.
+- Détection des doublons exacts ou audio très similaires ; examiner les
+  informations avant de choisir de garder les fichiers ou d'en supprimer un.
+- Les paramètres Tkinter proposent les mêmes palettes de couleurs que le
+  thème PySide6, première étape de migration visuelle sans retirer les outils
+  existants.
 - Forme d'onde audio lissée, redessinée en haute résolution avec un dégradé
   doux.
 - Fenêtre Paramètres pour personnaliser la palette, les dossiers surveillés
@@ -115,4 +128,4 @@ Les paramètres de l'application actuelle sont enregistrés dans
 l'aperçu Qt (thème, densité et fonctions activées) sont conservées par
 QSettings.
 
-Version actuelle : **1.0.007**.
+Version actuelle : **1.0.011 BETA**.

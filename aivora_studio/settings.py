@@ -15,6 +15,7 @@ from .config import (
     MUTED,
     TEXT,
 )
+from .qt_theme import THEME_PRESETS
 
 
 class SettingsMixin:
@@ -93,6 +94,73 @@ class SettingsMixin:
         current = config.get_settings()
         color_entries = {}
         color_swatches = {}
+
+        theme_card = self.create_settings_section(
+            content,
+            "PALETTES VISUELLES PYSIDE6",
+        )
+        theme_row = tk.Frame(theme_card, bg=CARD)
+        theme_row.pack(fill="x", padx=14, pady=(0, 14))
+        tk.Label(
+            theme_row,
+            text="Appliquer une palette à l’interface principale",
+            bg=CARD,
+            fg=MUTED,
+            font=("Segoe UI", 9),
+        ).pack(side="left")
+
+        theme_color_map = {
+            "background": "BG",
+            "surface": "CARD",
+            "surface_raised": "CARD_2",
+            "text": "TEXT",
+            "muted": "MUTED",
+            "accent": "ACCENT",
+            "accent_hover": "ACCENT_HOVER",
+            "border": "BORDER",
+        }
+        selected_theme = "Personnalisé"
+        for name, palette in THEME_PRESETS.items():
+            if all(
+                current[color_name].upper() == palette[token].upper()
+                for token, color_name in theme_color_map.items()
+            ):
+                selected_theme = name
+                break
+        theme_var = tk.StringVar(master=dialog, value=selected_theme)
+        theme_menu = tk.OptionMenu(
+            theme_row,
+            theme_var,
+            "Personnalisé",
+            *THEME_PRESETS,
+            command=lambda name: self.apply_qt_theme_preset(
+                name,
+                color_entries,
+                color_swatches,
+                theme_color_map,
+            ),
+        )
+        theme_menu.config(
+            bg=CARD_2,
+            fg=TEXT,
+            activebackground=config.ACCENT,
+            activeforeground="white",
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=1,
+            highlightbackground=BORDER,
+            font=("Segoe UI", 9),
+            padx=10,
+            pady=6,
+        )
+        theme_menu["menu"].config(
+            bg=CARD_2,
+            fg=TEXT,
+            activebackground=config.ACCENT,
+            activeforeground="white",
+            font=("Segoe UI", 9),
+        )
+        theme_menu.pack(side="right")
 
         color_card = self.create_settings_section(content, "COULEURS DE L'INTERFACE")
         colors_grid = tk.Frame(color_card, bg=CARD)
@@ -317,6 +385,26 @@ class SettingsMixin:
         ).pack(side="right")
         self.polish_widget_tree(dialog)
 
+    @staticmethod
+    def apply_qt_theme_preset(
+        name,
+        color_entries,
+        color_swatches,
+        theme_color_map,
+    ):
+        palette = THEME_PRESETS.get(name)
+        if palette is None:
+            return
+        for token, color_name in theme_color_map.items():
+            color = palette[token].upper()
+            entry = color_entries.get(color_name)
+            swatch = color_swatches.get(color_name)
+            if entry is None or swatch is None:
+                continue
+            entry.delete(0, tk.END)
+            entry.insert(0, color)
+            swatch.config(bg=color, activebackground=color)
+
     def create_settings_section(self, parent, title):
 
         card = tk.Frame(
@@ -535,6 +623,8 @@ class SettingsMixin:
 
         self._active_palette = current
         self.apply_feature_settings()
+        if hasattr(self, "refresh_artist_options"):
+            self.refresh_artist_options()
 
         if (
             hasattr(self, "_monitor_rescan_after_id")

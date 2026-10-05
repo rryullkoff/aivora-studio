@@ -9,7 +9,7 @@ import tempfile
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
-from tkinter import colorchooser, filedialog, messagebox
+from tkinter import colorchooser, filedialog, messagebox, simpledialog
 
 from tkinterdnd2 import TkinterDnD, DND_FILES
 from PIL import Image, ImageDraw, ImageFilter, ImageTk

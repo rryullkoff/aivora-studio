@@ -46,7 +46,15 @@ class AivoraStudio(
         self.cover_photo = None
 
         self.artist_entries = []
+        self.artist_folder_names = []
+        self.artist_folder_scan_errors = []
+        self.artist_folder_scan_running = False
+        self.artist_folder_scan_paths = None
+        self.artist_folder_queue = queue.Queue()
         self.monitor_queue = queue.Queue()
+        self.duplicate_hash_cache = {}
+        self.duplicate_fingerprint_cache = {}
+        self.reviewed_duplicate_keys = set()
         self.monitor_running = False
         self._monitor_rescan_after_id = None
         self.last_monitor_issues = []
@@ -58,5 +66,6 @@ class AivoraStudio(
         self.drop_zone.dnd_bind("<<Drop>>", self.handle_drop)
 
         self.add_artist_field()
+        self.refresh_artist_options()
         self.apply_feature_settings()
         self.start_folder_monitoring()

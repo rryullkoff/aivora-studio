@@ -1,6 +1,6 @@
 ﻿# Feuille de route des versions
 
-La version actuelle est **1.0.007**. Chaque correctif `1.0.xxx` doit rester
+La version actuelle est **1.0.011 BETA**. Chaque correctif `1.0.xxx` doit rester
 petit, testable et faire l'objet de son propre commit. Les nouvelles fonctions
 de la refonte PySide6 sont préparées progressivement ; elles ne remplacent pas
 l'application principale avant que les parcours existants soient vérifiés.
@@ -99,11 +99,51 @@ versions publiées repart de la nouvelle base 1.0.
 - **Livré** : demander confirmation avant d’écraser un fichier et ne retirer
   la source qu’après la copie réussie.
 
+### 1.0.008 — Déplacement automatique après enregistrement
+
+- **Livré** : déplacer automatiquement chaque fichier enregistré vers
+  `C:\Users\basti\Desktop\iCloudDrive\LEAK.BM31K`, qu’il ait été ouvert depuis
+  le rail, le sélecteur ou le glisser-déposer.
+- **Livré** : appliquer le même comportement aux interfaces Tkinter et PySide6,
+  sans demande de destination ni option pour désactiver le déplacement.
+- **Livré** : préserver les fichiers déjà présents en ajoutant un numéro au
+  nom du fichier déplacé en cas de doublon ; ne retirer la source qu’après
+  copie réussie.
+
+### 1.0.009 — Migration visuelle progressive
+
+- **Livré** : proposer dans les paramètres principaux les quatre palettes
+  PySide6 et les appliquer à l’interface Tkinter sans retirer ses outils.
+
+### 1.0.010 — Détection des doublons audio
+
+- **Livré** : détecter les fichiers binaires identiques et les sons très
+  similaires, dont les versions réencodées ou légèrement modifiées, en
+  combinant la comparaison du spectre FFmpeg et la proximité des noms/tags.
+- **Livré** : afficher les informations de chaque candidat et demander à
+  l’utilisateur de garder les fichiers ou de confirmer la suppression de l’un.
+- **Livré** : ne pas supprimer automatiquement, éviter les demandes répétées
+  pour des fichiers inchangés et présenter les erreurs d’analyse.
+- **Livré** : vérifier à nouveau le contenu avant suppression afin de refuser
+  un fichier modifié depuis son analyse, même si sa taille et sa date ont été
+  conservées.
+- **Livré** : exclure le dossier protégé et réutiliser les empreintes en cache.
+
+### 1.0.011 BETA — Rangement par premier artiste
+
+- **Bêta** : proposer dans les champs Artiste les noms des dossiers trouvés
+  hors dossier exclu, avec création possible d’un nouvel artiste.
+- **Bêta** : créer le dossier du premier artiste à l’enregistrement s’il
+  n’existe pas et y ranger le fichier.
+- **Bêta** : ne créer aucun fichier dans le dossier des autres artistes ; leurs
+  noms sont conservés uniquement dans les métadonnées.
+
 ## Prochains correctifs
 
-### 1.0.008 — Outils et paramètres
+### 1.0.012 — Migration visuelle et réglages
 
-- Relier le modal d'anomalies aux résultats réels de la surveillance.
+- Continuer à rapprocher l'interface principale des composants et espacements
+  visuels de PySide6 tout en gardant les outils Tkinter disponibles.
 - Migrer la conversion, la réparation et la sélection rapide, avec des erreurs
   explicites et des actions non bloquantes.
 - Vérifier les parcours principaux sur les formats audio pris en charge et

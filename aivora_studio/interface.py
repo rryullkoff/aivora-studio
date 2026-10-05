@@ -3,8 +3,11 @@
 from datetime import datetime, timedelta
 
 from .dependencies import (
+    queue,
+    threading,
     tk,
     tkfont,
+    simpledialog,
 )
 from . import config
 from .config import (
@@ -25,10 +28,13 @@ from .config import (
 from .helpers import (
     uppercase_text,
 )
+from .artist_folders import list_artist_folder_names
 from .version_history import VERSION_HISTORY
 
 
 class InterfaceMixin:
+
+    CREATE_ARTIST_OPTION = "＋ Créer un nouveau dossier artiste…"
 
     FIRST_UPDATE_AT = datetime(2026, 10, 9, 18)
     UPDATE_INTERVAL = timedelta(days=7)
@@ -391,6 +397,119 @@ class InterfaceMixin:
         self.polish_widget_tree(self)
         self.update_release_countdown()
 
+    def refresh_artist_options(self):
+        if self.artist_folder_scan_running:
+            return
+        self.artist_folder_scan_running = True
+        self.artist_folder_queue = queue.Queue()
+        monitored_root = config.MONITORED_FOLDER
+        excluded_root = config.EXCLUDED_FOLDER
+        self.artist_folder_scan_paths = (monitored_root, excluded_root)
+        threading.Thread(
+            target=self.scan_artist_options,
+            args=(monitored_root, excluded_root, self.artist_folder_queue),
+            daemon=True,
+        ).start()
+        self.after(100, self.collect_artist_options)
+
+    @staticmethod
+    def scan_artist_options(monitored_root, excluded_root, result_queue):
+        try:
+            result_queue.put(
+                list_artist_folder_names(monitored_root, excluded_root)
+            )
+        except (OSError, ValueError, RuntimeError) as error:
+            result_queue.put(([], [(monitored_root, str(error))]))
+
+    def collect_artist_options(self):
+        try:
+            names, errors = self.artist_folder_queue.get_nowait()
+        except queue.Empty:
+            self.after(100, self.collect_artist_options)
+            return
+
+        self.artist_folder_scan_running = False
+        if self.artist_folder_scan_paths != (
+            config.MONITORED_FOLDER,
+            config.EXCLUDED_FOLDER,
+        ):
+            self.refresh_artist_options()
+            return
+        self.artist_folder_names = names
+        self.artist_folder_scan_errors = errors
+        for item in self.artist_entries:
+            self.refresh_artist_option_menu(item)
+
+        if errors:
+            self.artist_folder_hint.config(
+                text=(
+                    f"{len(names)} artiste(s) · certains dossiers n’ont pas "
+                    f"pu être lus ({len(errors)} erreur(s))."
+                ),
+                fg=config.WARNING,
+            )
+            self.artist_folder_hint.bind(
+                "<Enter>",
+                lambda event: self.artist_folder_hint.configure(
+                    text="\n".join(
+                        f"{path}: {error}" for path, error in errors
+                    )
+                ),
+            )
+            self.artist_folder_hint.bind(
+                "<Leave>",
+                lambda event: self.artist_folder_hint.configure(
+                    text=(
+                        f"{len(names)} artiste(s) trouvé(s) · "
+                        "un nouveau dossier sera créé à l’enregistrement."
+                    )
+                ),
+            )
+        else:
+            self.artist_folder_hint.unbind("<Enter>")
+            self.artist_folder_hint.unbind("<Leave>")
+            self.artist_folder_hint.config(
+                text=(
+                    f"{len(names)} artiste(s) trouvé(s) · un nouveau dossier "
+                    "sera créé à l’enregistrement."
+                ),
+                fg=MUTED,
+            )
+
+    def refresh_artist_option_menu(self, item):
+        menu = item["menu"]["menu"]
+        menu.delete(0, tk.END)
+        for name in self.artist_folder_names:
+            menu.add_command(
+                label=name,
+                command=lambda selected=name, variable=item["variable"]:
+                    variable.set(selected),
+            )
+        menu.add_separator()
+        menu.add_command(
+            label=self.CREATE_ARTIST_OPTION,
+            command=lambda variable=item["variable"]:
+                self.create_artist_from_menu(variable),
+        )
+
+    def create_artist_from_menu(self, variable):
+        current = variable.get()
+        name = simpledialog.askstring(
+            "Créer un dossier artiste",
+            "Nom du premier artiste :",
+            initialvalue=current,
+            parent=self,
+        )
+        if name and name.strip():
+            variable.set(uppercase_text(name))
+            self.artist_folder_hint.config(
+                text=(
+                    "Le dossier sera créé sous "
+                    f"{config.MONITORED_FOLDER} à l’enregistrement."
+                ),
+                fg=ACCENT_HOVER,
+            )
+
     @staticmethod
     def format_update_countdown(now, target):
 
@@ -715,6 +834,19 @@ class InterfaceMixin:
             padx=20,
             pady=(0, 12),
         )
+        self.artist_folder_hint = tk.Label(
+            panel,
+            text=(
+                "Choisis un artiste existant ou crée son dossier "
+                "à l’enregistrement."
+            ),
+            bg=CARD,
+            fg=MUTED,
+            font=("Segoe UI", 8),
+            anchor="w",
+            justify="left",
+        )
+        self.artist_folder_hint.pack(fill="x", padx=20, pady=(0, 8))
 
         form = tk.Frame(panel, bg=CARD)
         form.pack(fill="both", expand=True, padx=20)
@@ -865,8 +997,10 @@ class InterfaceMixin:
         )
         label.pack(side="left")
 
+        variable = tk.StringVar(master=self)
         entry = tk.Entry(
             row,
+            textvariable=variable,
             bg="#282d37",
             fg=TEXT,
             insertbackground=TEXT,
@@ -888,13 +1022,43 @@ class InterfaceMixin:
             lambda event, e=entry: self.force_uppercase(e),
         )
 
+        artist_menu = tk.OptionMenu(
+            row,
+            variable,
+            "",
+        )
+        artist_menu.config(
+            text="▾",
+            bg=CARD,
+            fg=TEXT,
+            activebackground=ACCENT,
+            activeforeground="white",
+            relief="flat",
+            borderwidth=0,
+            cursor="hand2",
+            font=("Segoe UI", 10, "bold"),
+            padx=7,
+            pady=4,
+        )
+        artist_menu["menu"].config(
+            bg=CARD_2,
+            fg=TEXT,
+            activebackground=ACCENT,
+            activeforeground="white",
+            font=("Segoe UI", 9),
+        )
+        artist_menu.pack(side="left", padx=(0, 5))
+
         self.artist_entries.append(
             {
                 "frame": row,
                 "entry": entry,
                 "label": label,
+                "variable": variable,
+                "menu": artist_menu,
             }
         )
+        self.refresh_artist_option_menu(self.artist_entries[-1])
 
         tk.Button(
             row,
